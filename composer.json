@@ -1,5 +1,5 @@
 {
-    "name": "emuse/behat-html-formatter",
+    "name": "floviolleau/behat-html-formatter",
     "description": "This will create a html formatter for Behat.",
     "license": "MIT",
     "authors": [
@@ -10,7 +10,7 @@
     ],
     "require": {
         "php": ">=5.3.0",
-        "twig/twig":"~1.5|~2.0",
+        "twig/twig":"~3.0",
         "behat/behat": "~3.0",
         "behat/gherkin": "~4.2"
     },
