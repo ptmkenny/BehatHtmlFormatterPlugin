@@ -194,7 +194,7 @@ class BehatHTMLFormatter implements Formatter
      *
      * @return array The event names to listen to
      */
-    public static function getSubscribedEvents()
+    public static function getSubscribedEvents(): array
     {
         return array(
             'tester.exercise_completed.before' => 'onBeforeExercise',
@@ -216,7 +216,7 @@ class BehatHTMLFormatter implements Formatter
      *
      * @return string
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
@@ -234,9 +234,9 @@ class BehatHTMLFormatter implements Formatter
      *
      * @return string
      */
-    public function getDescription()
+    public function getDescription(): string
     {
-        return 'Formatter for teamcity';
+        return 'Generates an HTML report';
     }
 
     /**
@@ -244,7 +244,7 @@ class BehatHTMLFormatter implements Formatter
      *
      * @return OutputPrinter
      */
-    public function getOutputPrinter()
+    public function getOutputPrinter(): OutputPrinter
     {
         return $this->printer;
     }
@@ -255,7 +255,7 @@ class BehatHTMLFormatter implements Formatter
      * @param string $name
      * @param mixed  $value
      */
-    public function setParameter($name, $value)
+    public function setParameter(string $name, mixed $value): void
     {
         $this->parameters[$name] = $value;
     }
@@ -267,9 +267,9 @@ class BehatHTMLFormatter implements Formatter
      *
      * @return mixed
      */
-    public function getParameter($name)
+    public function getParameter(string $name): mixed
     {
-        return $this->parameters[$name];
+        return $this->parameters[$name] ?? null;
     }
 
     /**
@@ -624,7 +624,7 @@ class BehatHTMLFormatter implements Formatter
                             $this->failedSteps[] = $step;
                         }
                     } else {
-                        $step->setOutput($result->getCallResult()->getStdOut());
+                        $step->setOutput($result->getStdOut());
                         $this->passedSteps[] = $step;
                     }
                 }

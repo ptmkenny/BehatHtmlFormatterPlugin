@@ -20,7 +20,7 @@ class BehatHTMLFormatterExtension implements ExtensionInterface
      *
      * @api
      */
-    public function process(ContainerBuilder $container)
+    public function process(ContainerBuilder $container): void
     {
     }
 
@@ -29,7 +29,7 @@ class BehatHTMLFormatterExtension implements ExtensionInterface
      *
      * @return string
      */
-    public function getConfigKey()
+    public function getConfigKey(): string
     {
         return 'emusehtml';
     }
@@ -44,7 +44,7 @@ class BehatHTMLFormatterExtension implements ExtensionInterface
      *
      * @param ExtensionManager $extensionManager
      */
-    public function initialize(ExtensionManager $extensionManager)
+    public function initialize(ExtensionManager $extensionManager): void
     {
     }
 
@@ -53,7 +53,7 @@ class BehatHTMLFormatterExtension implements ExtensionInterface
      *
      * @param ArrayNodeDefinition $builder
      */
-    public function configure(ArrayNodeDefinition $builder)
+    public function configure(ArrayNodeDefinition $builder): void
     {
         $builder->children()->scalarNode('name')->defaultValue('emusehtml');
         $builder->children()->scalarNode('renderer')->defaultValue('Twig');
@@ -69,7 +69,7 @@ class BehatHTMLFormatterExtension implements ExtensionInterface
      * @param ContainerBuilder $container
      * @param array            $config
      */
-    public function load(ContainerBuilder $container, array $config)
+    public function load(ContainerBuilder $container, array $config): void
     {
         $definition = new Definition('emuse\\BehatHTMLFormatter\\Formatter\\BehatHTMLFormatter');
         $definition->addArgument($config['name']);

@@ -8,420 +8,172 @@
  * file that was distributed with this source code.
  */
 
-use Behat\Behat\Tester\Exception\PendingException;
 use Behat\Behat\Context\Context;
 use Behat\Gherkin\Node\PyStringNode;
+use Behat\Hook\AfterScenario;
+use Behat\Hook\BeforeScenario;
+use Behat\Step\Given;
+use Behat\Step\Then;
+use Behat\Step\When;
 use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
-use Behat\Behat\Context\SnippetAcceptingContext;
 
 /**
- * Behat test suite context.
+ * Runs Behat with the HTML formatter in a temporary project and checks the report.
  *
  * @author Konstantin Kudryashov <ever.zet@gmail.com>
  */
-class FeatureContext implements Context, SnippetAcceptingContext
+class FeatureContext implements Context
 {
-    /**
-     * @var string
-     */
-    private $phpBin;
-    /**
-     * @var Process
-     */
-    private $process;
-    /**
-     * @var string
-     */
-    private $workingDir;
-    /**
-     * @var string
-     */
-    private $output;
-    /**
-     * @var string
-     */
-    private $reportDir;
+    private const BEHAT_BIN_PATH = __DIR__.'/../../vendor/bin/behat';
 
-    /**
-     * Cleans test folders in the temporary directory.
-     *
-     * @BeforeSuite
-     * @After Suite
-     */
-    public static function cleanTestFolders()
+    private const BUILD_DIR = __DIR__.'/../../build';
+
+    private string $phpBin;
+
+    private string $workingDir;
+
+    private string $reportDir;
+
+    private ?Process $process = null;
+
+    #[BeforeScenario]
+    public function prepareTestFolders(): void
     {
-        if (is_dir($dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'behat')) {
-            self::clearDirectory($dir);
+        $this->workingDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'behat-html-formatter'.DIRECTORY_SEPARATOR.bin2hex(random_bytes(8));
+        mkdir($this->workingDir.'/features/bootstrap', 0777, true);
+        $this->reportDir = $this->workingDir.'/build/';
+
+        $php = (new PhpExecutableFinder())->find();
+        if (false === $php) {
+            throw new RuntimeException('Unable to find the PHP executable.');
         }
-    }
-
-    /**
-     * @AfterScenario
-     */
-    public function copyResultingTemplateToProjectRoot()
-    {
-        shell_exec('rm -rf '.__DIR__.'/../../build');
-        mkdir(__DIR__.'/../../build');
-        shell_exec('cp -R '.$this->workingDir.'/build/* '.__DIR__.'/../../build');
-    }
-
-    /**
-     * Prepares test folders in the temporary directory.
-     *
-     * @BeforeScenario
-     */
-    public function prepareTestFolders()
-    {
-        $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'behat' . DIRECTORY_SEPARATOR .
-            md5(microtime() * rand(0, 10000));
-
-        mkdir($dir . '/features/bootstrap/i18n', 0777, true);
-        mkdir($dir . '/junit');
-
-        $phpFinder = new PhpExecutableFinder();
-        if (false === $php = $phpFinder->find()) {
-            throw new \RuntimeException('Unable to find the PHP executable.');
-        }
-        $this->workingDir = $dir;
         $this->phpBin = $php;
-        $this->process = new Process(null);
-        $this->reportDir = $this->workingDir . '/build/';
     }
 
     /**
-     * Creates a file with specified name and context in current workdir.
-     *
-     * @Given /^(?:there is )?a file named "([^"]*)" with:$/
-     *
-     * @param string       $filename name of the file (relative path)
-     * @param PyStringNode $content  PyString string instance
+     * Copies the generated report to build/ in the project root for inspection,
+     * then removes the temporary project.
      */
-    public function aFileNamedWith($filename, PyStringNode $content)
+    #[AfterScenario]
+    public function copyReportAndCleanUp(): void
     {
-        $content = strtr((string) $content, array("'''" => '"""'));
-        $this->createFile($this->workingDir . '/' . $filename, $content);
-    }
-
-    /**
-     * Moves user to the specified path.
-     *
-     * @Given /^I am in the "([^"]*)" path$/
-     *
-     * @param string $path
-     */
-    public function iAmInThePath($path)
-    {
-        $this->moveToNewPath($path);
-    }
-
-    /**
-     * Checks whether a file at provided path exists.
-     *
-     * @Given /^file "([^"]*)" should exist$/
-     *
-     * @param   string $path
-     */
-    public function fileShouldExist($path)
-    {
-        PHPUnit_Framework_Assert::assertFileExists($this->workingDir . DIRECTORY_SEPARATOR . $path);
-    }
-
-    /**
-     * Sets specified ENV variable
-     *
-     * @When /^"BEHAT_PARAMS" environment variable is set to:$/
-     *
-     * @param PyStringNode $value
-     */
-    public function iSetEnvironmentVariable(PyStringNode $value)
-    {
-        $this->process->setEnv(array('BEHAT_PARAMS' => (string) $value));
-    }
-
-    /**
-     * Runs behat command with provided parameters
-     *
-     * @When /^I run "behat(?: ((?:\"|[^"])*))?"$/
-     *
-     * @param string $argumentsString
-     */
-    public function iRunBehat($argumentsString = '')
-    {
-        $argumentsString = strtr($argumentsString, array('\'' => '"'));
-
-        $this->process->setWorkingDirectory($this->workingDir);
-        $this->process->setCommandLine(
-            sprintf(
-                '%s %s %s %s',
-                $this->phpBin,
-                escapeshellarg(BEHAT_BIN_PATH),
-                $argumentsString,
-                strtr('--format-settings=\'{"timer": false}\'', array('\'' => '"', '"' => '\"'))
-            )
-        );
-
-        // Don't reset the LANG variable on HHVM, because it breaks HHVM itself
-        if (!defined('HHVM_VERSION')) {
-            $env = $this->process->getEnv();
-            $env['LANG'] = 'en'; // Ensures that the default language is en, whatever the OS locale is.
-            $this->process->setEnv($env);
+        self::removeDirectory(self::BUILD_DIR);
+        if (is_dir($this->reportDir)) {
+            self::copyDirectory($this->reportDir, self::BUILD_DIR);
         }
+        self::removeDirectory($this->workingDir);
+    }
 
+    #[Given('a file named :filename with:')]
+    public function aFileNamedWith(string $filename, PyStringNode $content): void
+    {
+        $path = $this->workingDir.'/'.$filename;
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0777, true);
+        }
+        file_put_contents($path, $content->getRaw());
+    }
+
+    #[When('/^I run "behat(?: ((?:\"|[^"])*))?"$/')]
+    public function iRunBehat(string $argumentsString = ''): void
+    {
+        $arguments = '' === $argumentsString ? [] : explode(' ', $argumentsString);
+        $this->process = new Process(
+            [$this->phpBin, self::BEHAT_BIN_PATH, ...$arguments],
+            $this->workingDir,
+            ['LANG' => 'en']
+        );
         $this->process->run();
-
-        $this->output = $this->process->getOutput();
     }
 
     /**
-     * Checks whether previously ran command passes|fails with provided output.
-     *
-     * @Then /^it should (fail|pass) with:$/
-     *
-     * @param string       $success "fail" or "pass"
-     * @param PyStringNode $text    PyString text instance
+     * Checks the exit code (0 to pass, 1 to fail), that nothing was written to
+     * stderr, and that stdout is exactly the expected text.
      */
-    public function itShouldPassWith($success, PyStringNode $text)
+    #[Then('/^it should (fail|pass) with:$/')]
+    public function itShouldFailOrPassWith(string $result, PyStringNode $expected): void
     {
-        $this->itShouldFail($success);
-        $this->theOutputShouldContain($text);
-    }
+        $expectedExitCode = 'fail' === $result ? 1 : 0;
+        $exitCode = $this->process->getExitCode();
+        $stdout = $this->process->getOutput();
+        $stderr = $this->process->getErrorOutput();
 
-    /**
-     * Checks whether previously runned command passes|failes with no output.
-     *
-     * @Then /^it should (fail|pass) with no output$/
-     *
-     * @param string $success "fail" or "pass"
-     */
-    public function itShouldPassWithNoOutput($success)
-    {
-        $this->itShouldFail($success);
-        PHPUnit_Framework_Assert::assertEmpty($this->getOutput());
-    }
-
-    /**
-     * Checks whether specified file exists and contains specified string.
-     *
-     * @Then /^"([^"]*)" file should contain:$/
-     *
-     * @param string       $path file path
-     * @param PyStringNode $text file content
-     */
-    public function fileShouldContain($path, PyStringNode $text)
-    {
-        $path = $this->workingDir . '/' . $path;
-        PHPUnit_Framework_Assert::assertFileExists($path);
-
-        $fileContent = trim(file_get_contents($path));
-        // Normalize the line endings in the output
-        if ("\n" !== PHP_EOL) {
-            $fileContent = str_replace(PHP_EOL, "\n", $fileContent);
+        if ($expectedExitCode !== $exitCode) {
+            throw new RuntimeException(sprintf(
+                "Expected exit code %d, got %d. Output:\n\n%s",
+                $expectedExitCode,
+                $exitCode,
+                $stderr.$stdout
+            ));
         }
-
-        PHPUnit_Framework_Assert::assertEquals($this->getExpectedOutput($text), $fileContent);
-    }
-
-    /**
-     * Checks whether specified content and structure of the xml is correct without worrying about layout.
-     *
-     * @Then /^"([^"]*)" file xml should be like:$/
-     *
-     * @param string       $path file path
-     * @param PyStringNode $text file content
-     */
-    public function fileXmlShouldBeLike($path, PyStringNode $text)
-    {
-        $path = $this->workingDir . '/' . $path;
-        PHPUnit_Framework_Assert::assertFileExists($path);
-
-        $fileContent = trim(file_get_contents($path));
-
-        $dom = new DOMDocument();
-        $dom->loadXML($text);
-        $dom->formatOutput = true;
-
-        PHPUnit_Framework_Assert::assertEquals(trim($dom->saveXML(null, LIBXML_NOEMPTYTAG)), $fileContent);
-    }
-
-
-    /**
-     * Checks whether last command output contains provided string.
-     *
-     * @Then the output should contain:
-     *
-     * @param PyStringNode $text PyString text instance
-     */
-    public function theOutputShouldContain(PyStringNode $text)
-    {
-        PHPUnit_Framework_Assert::assertContains($this->getExpectedOutput($text), $this->getOutput());
-    }
-
-    private function getExpectedOutput(PyStringNode $expectedText)
-    {
-        $text = strtr($expectedText, array('\'\'\'' => '"""', '%%TMP_DIR%%' => sys_get_temp_dir() . DIRECTORY_SEPARATOR));
-
-        // windows path fix
-        if ('/' !== DIRECTORY_SEPARATOR) {
-            $text = preg_replace_callback(
-                '/[ "]features\/[^\n "]+/', function ($matches) {
-                    return str_replace('/', DIRECTORY_SEPARATOR, $matches[0]);
-                }, $text
-            );
-            $text = preg_replace_callback(
-                '/\<span class\="path"\>features\/[^\<]+/', function ($matches) {
-                    return str_replace('/', DIRECTORY_SEPARATOR, $matches[0]);
-                }, $text
-            );
-            $text = preg_replace_callback(
-                '/\+[fd] [^ ]+/', function ($matches) {
-                    return str_replace('/', DIRECTORY_SEPARATOR, $matches[0]);
-                }, $text
-            );
+        if ('' !== $stderr) {
+            throw new RuntimeException("Expected no error output, got:\n\n".$stderr);
         }
-
-        return $text;
-    }
-
-    /**
-     * Checks whether previously ran command failed|passed.
-     *
-     * @Then /^it should (fail|pass)$/
-     *
-     * @param string $success "fail" or "pass"
-     */
-    public function itShouldFail($success)
-    {
-        if ('fail' === $success) {
-            if (0 === $this->getExitCode()) {
-                echo 'Actual output:' . PHP_EOL . PHP_EOL . $this->getOutput();
-            }
-
-            PHPUnit_Framework_Assert::assertNotEquals(0, $this->getExitCode());
-        } else {
-            if (0 !== $this->getExitCode()) {
-                echo 'Actual output:' . PHP_EOL . PHP_EOL . $this->getOutput();
-            }
-
-            PHPUnit_Framework_Assert::assertEquals(0, $this->getExitCode());
+        if (trim($expected->getRaw()) !== trim($stdout)) {
+            throw new RuntimeException(sprintf(
+                "Expected output:\n\n%s\n\nActual output:\n\n%s",
+                $expected->getRaw(),
+                $stdout
+            ));
         }
     }
 
-    /**
-     * Checks whether the file is valid according to an XML schema.
-     *
-     * @Then /^the file "([^"]+)" should be a valid document according to "([^"]+)"$/
-     *
-     * @param string $xmlFile
-     * @param string $schemaPath relative to features/bootstrap/schema
-     */
-    public function xmlShouldBeValid($xmlFile, $schemaPath)
+    #[Then('report file should exist')]
+    public function reportFileShouldExist(): void
     {
-        $dom = new DomDocument();
-        $dom->load($this->workingDir . '/' . $xmlFile);
-
-        $dom->schemaValidate(__DIR__ . '/schema/' . $schemaPath);
-    }
-
-    /**
-     * @Then process output should be:
-     *
-     * @param PyStringNode $expected
-     */
-    public function processOutputShouldBe(PyStringNode $expected)
-    {
-        PHPUnit_Framework_Assert::assertEquals($expected->getRaw(), $this->output);
-    }
-
-
-    /**
-     * @Given report file should exists
-     */
-    public function reportFileShouldExists()
-    {
-        $files = array(
-            $this->reportDir . 'Index.html',
-            $this->reportDir . 'assets/Twig/css/style.css',
-            $this->reportDir . 'assets/Twig/css/style.less',
-        );
+        $files = [
+            $this->reportDir.'Index.html',
+            $this->reportDir.'assets/Twig/css/style.css',
+            $this->reportDir.'assets/Twig/css/style.less',
+        ];
 
         foreach ($files as $file) {
-            PHPUnit_Framework_Assert::assertFileExists($file);
+            if (!is_file($file)) {
+                throw new RuntimeException(sprintf('File "%s" does not exist.', $file));
+            }
         }
     }
 
-    /**
-     * @Given report file should contain:
-     *
-     * @param PyStringNode $string
-     */
-    public function reportFileShouldContain(PyStringNode $string)
+    #[Then('report file should contain:')]
+    public function reportFileShouldContain(PyStringNode $string): void
     {
-        $index = $this->reportDir . 'Index.html';
-
-        PHPUnit_Framework_Assert::assertContains($string->getRaw(), file_get_contents($index));
-    }
-
-    private function getExitCode()
-    {
-        return $this->process->getExitCode();
-    }
-
-    private function getOutput()
-    {
-        $output = $this->process->getErrorOutput() . $this->process->getOutput();
-
-        // Normalize the line endings in the output
-        if ("\n" !== PHP_EOL) {
-            $output = str_replace(PHP_EOL, "\n", $output);
+        $report = file_get_contents($this->reportDir.'Index.html');
+        if (!str_contains($report, $string->getRaw())) {
+            throw new RuntimeException(sprintf('The report does not contain "%s".', $string->getRaw()));
         }
-
-        // Replace wrong warning message of HHVM
-        $output = str_replace('Notice: Undefined index: ', 'Notice: Undefined offset: ', $output);
-
-        return trim(preg_replace("/ +$/m", '', $output));
     }
 
-    private function createFile($filename, $content)
+    private static function copyDirectory(string $source, string $destination): void
     {
-        $path = dirname($filename);
-        $this->createDirectory($path);
-
-        file_put_contents($filename, $content);
+        mkdir($destination, 0777, true);
+        foreach (scandir($source) as $file) {
+            if ('.' === $file || '..' === $file) {
+                continue;
+            }
+            if (is_dir($source.'/'.$file)) {
+                self::copyDirectory($source.'/'.$file, $destination.'/'.$file);
+            } else {
+                copy($source.'/'.$file, $destination.'/'.$file);
+            }
+        }
     }
 
-    private function createDirectory($path)
+    private static function removeDirectory(string $path): void
     {
         if (!is_dir($path)) {
-            mkdir($path, 0777, true);
+            return;
         }
-    }
-
-    private function moveToNewPath($path)
-    {
-        $newWorkingDir = $this->workingDir . '/' . $path;
-        if (!file_exists($newWorkingDir)) {
-            mkdir($newWorkingDir, 0777, true);
-        }
-
-        $this->workingDir = $newWorkingDir;
-    }
-
-    private static function clearDirectory($path)
-    {
-        $files = scandir($path);
-        array_shift($files);
-        array_shift($files);
-
-        foreach ($files as $file) {
-            $file = $path . DIRECTORY_SEPARATOR . $file;
-            if (is_dir($file)) {
-                self::clearDirectory($file);
+        foreach (scandir($path) as $file) {
+            if ('.' === $file || '..' === $file) {
+                continue;
+            }
+            if (is_dir($path.'/'.$file)) {
+                self::removeDirectory($path.'/'.$file);
             } else {
-                unlink($file);
+                unlink($path.'/'.$file);
             }
         }
-
         rmdir($path);
     }
 }

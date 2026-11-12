@@ -1,49 +1,57 @@
   Feature: Twig Renderer
 
   Background:
-    Given a file named "behat.yml" with:
+    Given a file named "behat.php" with:
       """
-      default:
-        formatters:
-            html:
-                output_path: %paths.base%/build
-        extensions:
-            emuse\BehatHTMLFormatter\BehatHTMLFormatterExtension:
-                name: html
-                renderer: Twig
-                file_name: Index
-                print_args: true
-                print_outp: true
-                loop_break: true
-        suites:
-            suite1:
-                paths:    [ "%paths.base%/features/suite1" ]
-            suite2:
-                paths:    [ "%paths.base%/features/suite2" ]
-            suite3:
-                paths:    [ "%paths.base%/features/suite3" ]
+      <?php
+      use Behat\Config\Config;
+      use Behat\Config\Extension;
+      use Behat\Config\Formatter\Formatter;
+      use Behat\Config\Profile;
+      use Behat\Config\Suite;
+      use emuse\BehatHTMLFormatter\BehatHTMLFormatterExtension;
+
+      return (new Config())
+          ->withProfile((new Profile('default'))
+              ->withFormatter((new Formatter('html'))->withOutputPath(__DIR__.'/build'))
+              ->withExtension(new Extension(BehatHTMLFormatterExtension::class, [
+                  'name' => 'html',
+                  'renderer' => 'Twig',
+                  'file_name' => 'Index',
+                  'print_args' => true,
+                  'print_outp' => true,
+                  'loop_break' => true,
+              ]))
+              ->withSuite((new Suite('suite1'))->withPaths(__DIR__.'/features/suite1'))
+              ->withSuite((new Suite('suite2'))->withPaths(__DIR__.'/features/suite2'))
+              ->withSuite((new Suite('suite3'))->withPaths(__DIR__.'/features/suite3')));
       """
     Given a file named "features/bootstrap/FeatureContext.php" with:
       """
       <?php
-        use Behat\Behat\Context\CustomSnippetAcceptingContext,
-            Behat\Behat\Tester\Exception\PendingException;
-        class FeatureContext implements CustomSnippetAcceptingContext
-        {
-            public static function getAcceptedSnippetType() { return 'regex'; }
-            /** @When /^I give a passing step$/ */
-            public function passingStep() { 
-              PHPUnit_Framework_Assert::assertEquals(2, 2);
-            }
-            /** @When /^I give a failing step$/ */
-            public function failingStep() { 
-              PHPUnit_Framework_Assert::assertEquals(1, 2);
-            }
-            /** * @When /^I give a pending step$/ */
-            public function somethingNotDoneYet() {
-                throw new PendingException();
-            }
-        }
+      use Behat\Behat\Context\Context;
+      use Behat\Behat\Tester\Exception\PendingException;
+      use Behat\Step\When;
+
+      class FeatureContext implements Context
+      {
+          #[When('I give a passing step')]
+          public function passingStep(): void
+          {
+          }
+
+          #[When('I give a failing step')]
+          public function failingStep(): void
+          {
+              throw new RuntimeException('Failing step');
+          }
+
+          #[When('I give a pending step')]
+          public function pendingStep(): void
+          {
+              throw new PendingException();
+          }
+      }
       """
 
  Scenario: Multiple Suites with multiple results
@@ -74,34 +82,34 @@
       Feature: Suite with pending scenario
         Scenario: One pending step
           Then I give a pending step
+        Scenario: One undefined step
+          Then I give an undefined step
       """
-    When I run "behat --no-colors"
-    Then process output should be:
+    When I run "behat --no-colors --no-interaction"
+    Then it should fail with:
       """
+      --- Use --snippets-for CLI option to generate snippets for following suite3 suite steps:
 
-      --- FeatureContext has missing steps. Define them with these snippets:
-
-          /**
-           * @Then /^I give a pending step$/
-           */
-          public function iGiveAPendingStep()
-          {
-              throw new PendingException();
-          }
-
-
+          Then I give an undefined step
       """
-    And report file should exists
+    And report file should exist
+    # Chart data: features [failed, passed], scenarios [failed, pending, passed],
+    # steps [failed, passed]. The formatter counts an undefined scenario as failed
+    # and leaves pending and undefined steps out of the step chart.
     And report file should contain:
       """
-      2 features failed of 3
+      3 Features:
       """
     And report file should contain:
       """
-      5 scenarios failed of 7
+      data: [2, 1],
       """
     And report file should contain:
       """
-      2 steps failed of 6
+      data: [3, 3, 2],
+      """
+    And report file should contain:
+      """
+      data: [2, 4],
       """
 

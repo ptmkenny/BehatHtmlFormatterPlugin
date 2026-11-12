@@ -2,6 +2,10 @@
 
 namespace emuse\BehatHTMLFormatter\Context;
 
+use Behat\Behat\Hook\Scope\AfterStepScope;
+use Behat\Behat\Hook\Scope\BeforeScenarioScope;
+use Behat\Hook\AfterStep;
+use Behat\Hook\BeforeScenario;
 use Behat\MinkExtension\Context\RawMinkContext;
 
 class ScreenshotContext extends RawMinkContext
@@ -14,22 +18,14 @@ class ScreenshotContext extends RawMinkContext
         $this->screenshotDir = $screenshotDir;
     }
 
-    /**
-     * @BeforeScenario
-     *
-     * @param BeforeScenarioScope $scope
-     */
-    public function setUpTestEnvironment($scope)
+    #[BeforeScenario]
+    public function setUpTestEnvironment(BeforeScenarioScope $scope): void
     {
         $this->currentScenario = $scope->getScenario();
     }
 
-    /**
-     * @AfterStep
-     *
-     * @param AfterStepScope $scope
-     */
-    public function afterStep($scope)
+    #[AfterStep]
+    public function afterStep(AfterStepScope $scope): void
     {
         // if test is passed, skip taking screenshot
         if ($scope->getTestResult()->isPassed()) {

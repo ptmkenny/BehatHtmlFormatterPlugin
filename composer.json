@@ -9,14 +9,17 @@
         }
     ],
     "require": {
-        "php": ">=5.3.0",
-        "twig/twig":"~3.0",
-        "behat/behat": "~3.0",
-        "behat/gherkin": "~4.2"
+        "php": ">=8.2",
+        "twig/twig": "^3.0",
+        "behat/behat": "^4.0",
+        "behat/gherkin": "^4.18"
     },
     "require-dev": {
-        "symfony/process": ">2.3,<4.0",
-        "phpunit/phpunit": "~4.1"
+        "friends-of-behat/mink-extension": "^3.0@alpha",
+        "symfony/process": "^6.4 || ^7.0 || ^8.0"
+    },
+    "suggest": {
+        "friends-of-behat/mink-extension": "Required by ScreenshotContext (^3.0 for Behat 4)"
     },
     "autoload": {
         "psr-4": {

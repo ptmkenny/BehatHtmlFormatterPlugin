@@ -54,7 +54,7 @@ class FileOutputPrinter implements PrinterInterface
      *
      * @param string $path Output path relative to %paths.base%
      */
-    public function setOutputPath($path)
+    public function setOutputPath(string $path): void
     {
         $outpath = $path;
         if (!file_exists($outpath)) {
@@ -84,9 +84,9 @@ class FileOutputPrinter implements PrinterInterface
     /**
      * Returns output path.
      *
-     * @return string output path
+     * @return string|null output path
      */
-    public function getOutputPath()
+    public function getOutputPath(): ?string
     {
         return $this->outputPath;
     }
@@ -96,16 +96,7 @@ class FileOutputPrinter implements PrinterInterface
      *
      * @param array $styles
      */
-    public function setOutputStyles(array $styles)
-    {
-    }
-
-    /**
-     * Returns output styles.
-     *
-     * @return array
-     */
-    public function getOutputStyles()
+    public function setOutputStyles(array $styles): void
     {
     }
 
@@ -114,18 +105,8 @@ class FileOutputPrinter implements PrinterInterface
      *
      * @param bool $decorated
      */
-    public function setOutputDecorated($decorated)
+    public function setOutputDecorated(bool $decorated): void
     {
-    }
-
-    /**
-     * Returns output decoration status.
-     *
-     * @return null|bool
-     */
-    public function isOutputDecorated()
-    {
-        return true;
     }
 
     /**
@@ -133,28 +114,19 @@ class FileOutputPrinter implements PrinterInterface
      *
      * @param int $level
      */
-    public function setOutputVerbosity($level)
-    {
-    }
-
-    /**
-     * Returns output verbosity level.
-     *
-     * @return int
-     */
-    public function getOutputVerbosity()
+    public function setOutputVerbosity(int $level): void
     {
     }
 
     /**
      * Writes message(s) to output console.
      *
-     * @param string|array $messages message or array of messages
+     * @param string|array $messages message, or array of messages keyed by renderer name
      */
-    public function write($messages = array())
+    public function write(string|array $messages): void
     {
         //Write it for each message = each renderer
-        foreach ($messages as $key => $message) {
+        foreach ($this->messagesByRenderer($messages) as $key => $message) {
             $file = $this->outputPath.DIRECTORY_SEPARATOR.$this->rendererFiles[$key].'.html';
             file_put_contents($file, $message);
             $this->copyAssets($key);
@@ -164,12 +136,12 @@ class FileOutputPrinter implements PrinterInterface
     /**
      * Writes newlined message(s) to output console.
      *
-     * @param string|array $messages message or array of messages
+     * @param string|array $messages message, or array of messages keyed by renderer name
      */
-    public function writeln($messages = array())
+    public function writeln(string|array $messages = ''): void
     {
         //Write it for each message = each renderer
-        foreach ($messages as $key => $message) {
+        foreach ($this->messagesByRenderer($messages) as $key => $message) {
             $file = $this->outputPath.DIRECTORY_SEPARATOR.$this->rendererFiles[$key].'.html';
             file_put_contents($file, $message, FILE_APPEND);
         }
@@ -178,12 +150,12 @@ class FileOutputPrinter implements PrinterInterface
     /**
      * Writes  message(s) at start of the output console.
      *
-     * @param string|array $messages message or array of messages
+     * @param string|array $messages message, or array of messages keyed by renderer name
      */
-    public function writeBeginning($messages = array())
+    public function writeBeginning(string|array $messages = ''): void
     {
         //Write it for each message = each renderer
-        foreach ($messages as $key => $message) {
+        foreach ($this->messagesByRenderer($messages) as $key => $message) {
             $file = $this->outputPath.DIRECTORY_SEPARATOR.$this->rendererFiles[$key].'.html';
             $fileContents = file_get_contents($file);
             file_put_contents($file, $message.$fileContents);
@@ -191,11 +163,29 @@ class FileOutputPrinter implements PrinterInterface
     }
 
     /**
+     * Normalizes messages to an array keyed by renderer name.
+     *
+     * A string message is written to the file of every renderer.
+     *
+     * @param string|array $messages
+     *
+     * @return array<string, string>
+     */
+    private function messagesByRenderer(string|array $messages): array
+    {
+        if (is_array($messages)) {
+            return $messages;
+        }
+
+        return array_fill_keys(array_keys($this->rendererFiles), $messages);
+    }
+
+    /**
      * Copies the assets folder to the report destination.
      *
      * @param string : the renderer
      */
-    public function copyAssets($renderer)
+    public function copyAssets(string $renderer): void
     {
         // If the assets folder doesn' exist in the output path for this renderer, copy it
         $source = realpath(dirname(__FILE__));
@@ -237,7 +227,7 @@ class FileOutputPrinter implements PrinterInterface
     /**
      * Clear output console, so on next write formatter will need to init (create) it again.
      */
-    public function flush()
+    public function flush(): void
     {
     }
 }

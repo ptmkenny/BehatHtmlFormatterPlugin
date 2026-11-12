@@ -1,6 +1,6 @@
 ## BehatHtmlFormatterPlugin
 
-Behat 3 extension for generating HTML reports from your test results.
+Behat 4 extension for generating HTML reports from your test results.
 
 [![Latest Stable Version](https://poser.pugx.org/emuse/behat-html-formatter/v/stable)](https://packagist.org/packages/emuse/behat-html-formatter) [![Total Downloads](https://poser.pugx.org/emuse/behat-html-formatter/downloads)](https://packagist.org/packages/emuse/behat-html-formatter) [![Latest Unstable Version](https://poser.pugx.org/emuse/behat-html-formatter/v/unstable)](https://packagist.org/packages/emuse/behat-html-formatter) [![License](https://poser.pugx.org/emuse/behat-html-formatter/license)](https://packagist.org/packages/emuse/behat-html-formatter)
 
@@ -16,8 +16,8 @@ Behat 3 extension for generating HTML reports from your test results.
 ## How?
 
 * The tool can be installed easily with composer.
-* Defining the formatter in the `behat.yml` file
-* Modifying the settings in the `behat.yml`file
+* Defining the formatter in the `behat.php` file
+* Modifying the settings in the `behat.php` file
 
 ## Installation
 
@@ -25,8 +25,10 @@ Behat 3 extension for generating HTML reports from your test results.
 
 This extension requires:
 
-* PHP 5.3.x or higher
-* Behat 3.x or higher
+* PHP 8.2 or higher
+* Behat 4.x
+
+`ScreenshotContext` also requires `friends-of-behat/mink-extension` 3.x.
 
 ### Through composer
 
@@ -45,7 +47,7 @@ Add BehatHtmlFormatterPlugin to the list of dependencies inside your `composer.j
 ```json
 {
     "require": {
-        "behat/behat": "3.*@stable",
+        "behat/behat": "^4.0",
         "emuse/behat-html-formatter": "0.1.*",
     },
     "minimum-stability": "dev",
@@ -65,29 +67,36 @@ You can read more about Composer on its [official webpage](http://getcomposer.or
 
 ## Basic usage
 
-Activate the extension by specifying its class in your `behat.yml`:
+Activate the extension by specifying its class in your `behat.php`:
 
-```json
-# behat.yml
-default:
-  suites:
-    default:
-       contexts:
-          - emuse\BehatHTMLFormatter\Context\ScreenshotContext:
-               screenshotDir: build/html/behat/assets/screenshots
-    ... # All your awesome suites come here
-  formatters:
-    html:
-      output_path: %paths.base%/build/html/behat
+```php
+<?php
+// behat.php
 
-  extensions:
-    emuse\BehatHTMLFormatter\BehatHTMLFormatterExtension:
-      name: html
-      renderer: Twig,Behat2
-      file_name: index
-      print_args: true
-      print_outp: true
-      loop_break: true
+use Behat\Config\Config;
+use Behat\Config\Extension;
+use Behat\Config\Formatter\Formatter;
+use Behat\Config\Profile;
+use Behat\Config\Suite;
+use emuse\BehatHTMLFormatter\BehatHTMLFormatterExtension;
+use emuse\BehatHTMLFormatter\Context\ScreenshotContext;
+
+return (new Config())
+    ->withProfile((new Profile('default'))
+        ->withSuite((new Suite('default'))
+            ->addContext(ScreenshotContext::class, [
+                'screenshotDir' => __DIR__.'/build/html/behat/assets/screenshots',
+            ]))
+            // ... All your awesome suites come here
+        ->withFormatter((new Formatter('html'))->withOutputPath(__DIR__.'/build/html/behat'))
+        ->withExtension(new Extension(BehatHTMLFormatterExtension::class, [
+            'name' => 'html',
+            'renderer' => 'Twig,Behat2',
+            'file_name' => 'index',
+            'print_args' => true,
+            'print_outp' => true,
+            'loop_break' => true,
+        ])));
 ```
 
 ### Command line options
@@ -104,7 +113,7 @@ You also need to specify the output directory for the reports as MYDIRECTORY.
 
 ### Formatter configuration
 
-* `output_path` - The location where Behat will save the HTML reports. Use `%paths.base%` to build the full path.
+* `output_path` - The location where Behat will save the HTML reports. Set it with `withOutputPath()`; use `__DIR__` to build the full path.
 
 ### Extension configuration
 
@@ -133,23 +142,19 @@ Below is an example of FeatureContext methods which will produce an image file i
 
 ```php
 
-        /**
-         * @BeforeScenario
-         *
-         * @param BeforeScenarioScope $scope
-         *
-         */
-        public function setUpTestEnvironment($scope)
+        use Behat\Behat\Hook\Scope\AfterStepScope;
+        use Behat\Behat\Hook\Scope\BeforeScenarioScope;
+        use Behat\Hook\AfterStep;
+        use Behat\Hook\BeforeScenario;
+
+        #[BeforeScenario]
+        public function setUpTestEnvironment(BeforeScenarioScope $scope): void
         {
             $this->currentScenario = $scope->getScenario();
         }
 
-        /**
-         * @AfterStep
-         *
-         * @param AfterStepScope $scope
-         */
-        public function afterStep($scope)
+        #[AfterStep]
+        public function afterStep(AfterStepScope $scope): void
         {
             //if test has failed, and is not an api test, get screenshot
             if(!$scope->getTestResult()->isPassed())
@@ -175,7 +180,7 @@ Below is an example of FeatureContext methods which will produce an image file i
 
 ```
 
-Note that the currentScenario variable will need to be at class level and generated in the @BeforeScenario method as Behat does not currently support obtaining the current Scenario in the @AfterStep method, where the screenshot is generated
+Note that the currentScenario variable will need to be at class level and generated in the `#[BeforeScenario]` method as Behat does not currently support obtaining the current Scenario in the `#[AfterStep]` method, where the screenshot is generated
 
 ## Issue Submission
 
